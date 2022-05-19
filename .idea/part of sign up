@@ -1,0 +1,68 @@
+# Create your views here.
+def home(request):
+    return render(request, "authentication/index.html")
+
+def signup(request):
+    if request.method == "POST":
+        userName = request.POST['userName']
+        firstName = request.POST['firstName']
+        lastName = request.POST['lastName']
+        email = request.POST['email']
+        pass1 = request.POST['pass1']
+        pass2 = request.POST['pass2']
+
+        if User.objects.filter(userName=userName):
+            messages.error(request, "That usernamke is taken. Please try another.")
+            return redirect('home')
+
+        if User.objects.filter(email=email).exists():
+            messages.error(request, "This email has already been registered, please check your emails for confirmation.")
+            return redirect('home')
+
+        if len(userName)>20:
+            messages.error(request, "Username must be under 20 characters")
+            return redirect('home')
+
+        if pass1 != pass2:
+            messages.error(request, "The passwords input do not match")
+            return redirect('home')
+
+        myuser = User.objects.create_user(userName, email, pass1)
+        myuser.first_name = firstName
+        myuser.last_name = lastName
+        # myuser.is_active = False
+        myuser.is_active = False
+        myuser.save()
+        messages.success(request, "Your Account has been sucessfully created. Please check your email to confirm the email address in order to activate your account.")
+
+        # Welcome Email
+        subject = "Welcome to CVMe"
+        message = "Hello " + myuser.first_name + "!! \n" + "Thank you for creating your CVMe Account. \nTo complete your registration we have sent another confermation email.\n\n Yours truly, \nCVMe Team\n\n"
+        from_email = settings.EMAIL_HOST_USER
+        to_list = [myuser.email]
+        send_mail(subject, message, from_email, to_list, fail_silently=True)
+
+        # Email Address Confirmation Email
+        current_site = get_current_site(request)
+        email_subject = "Confirm your Email for CVMe"
+        message2 = render_to_string('email_confirmation.html',{
+
+            'name': myuser.first_name,
+            'domain': current_site.domain,
+            'uid': urlsafe_base64_encode(force_bytes(myuser.pk)),
+            'token': generate_token.make_token(myuser)
+        })
+        email = EmailMessage(
+        email_subject,
+        message2,
+        settings.EMAIL_HOST_USER,
+        [myuser.email],
+        )
+        email.fail_silently = True
+        email.send()
+        
+        return redirect('signin')
+        
+        
+    return render(request, "authentication/signup.html")
+
